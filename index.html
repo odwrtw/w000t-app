@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>w000t</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="w000t it!">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="manifest.json">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        body {
+            background: black;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            padding: 30px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border: 3px solid #00ff00;
+            box-shadow: 0px 0px 15px #00ff00;
+        }
+        h1 {
+            color: #00ff00;
+            text-shadow: 0px 0px 10px #00ff00;
+            font-size: 2rem;
+        }
+        input {
+            width: 90%;
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #00ff00;
+            background: black;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+        }
+        button {
+            background: black;
+            color: #00ff00;
+            font-size: 18px;
+            padding: 10px 20px;
+            border: 2px solid #00ff00;
+            cursor: pointer;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+        }
+        button:hover {
+            background: #00ff00;
+            color: black;
+            text-shadow: 0px 0px 5px black;
+        }
+        .result {
+            display: none;
+            background: #003300;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            border: 2px solid #00ff00;
+            container-type: inline-size;
+        }
+        .short-url {
+            font-weight: bold;
+            font-size: 5cqw;
+            color: #00ff00;
+            text-shadow: 0px 0px 5px #00ff00;
+            text-align: center;
+        }
+        .loading{
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        .loading::after {
+            content: "...";
+            animation: dots 1s steps(5, end) infinite;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        @keyframes dots {
+            0%, 20%, { content: ".";}
+            40% { content: "..";}
+            60%, 100%, { content: "...";}
+        }
+        .error {
+            color: #ff0033;
+            border: 3px solid #ff0033;
+            box-shadow: 0px 0px 15px #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div>
+        <h1 id="w000t">[ w000t ]</h1>
+        </div>
+        <p>Encrypting... Shortening... Access Granted! ✅</p>
+        <div class="input-group">
+            <input type="text" id="token" placeholder="ENTER YOUR SECRET TOKEN..." style="display: none;">
+            <input type="url" id="long-url" placeholder="ENTER TARGET URL..." required>
+        </div>
+        <br>
+        <button id="shorten-btn">INITIATE PROTOCOL</button>
+        <div class="result" id="result">
+            <p>Operation Successful. Shortened URL:</p>
+            <p class="short-url" id="short-url"></p>
+            <button id="copy-btn">Copy to Clipboard</button>
+        </div>
+        <div id="status" class="status"></div>
+    <div class="loading" id="loading">Shortening URL</div>
+    </div>
+
+    <script>
+        // Debug Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', async () => {
+                try {
+                    const registration = await navigator.serviceWorker.register('service-worker.js', {
+                        scope: '/'
+                    });
+
+                    // Check if an update is available
+                    registration.onupdatefound = () => {
+                        const installingWorker = registration.installing;
+                        if (installingWorker) {
+                            installingWorker.onstatechange = () => {
+                                console.log('Service worker state:', installingWorker.state);
+                            };
+                        }
+                    };
+                } catch (error) {
+                    console.error('ServiceWorker registration failed:', error);
+                    // More detailed error information
+                    console.error('Error name:', error.name);
+                    console.error('Error message:', error.message);
+                    if (error.stack) console.error('Error stack:', error.stack);
+                }
+            });
+
+            // Log existing service worker registrations
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                console.log('Existing service worker registrations:', registrations);
+            });
+        } else {
+            console.error('Service workers are not supported in this browser');
+        }
+
+        // Handle Web Share Target
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedUrl = urlParams.get('text') || urlParams.get('url') || '';
+
+            if (sharedUrl) {
+                document.getElementById('long-url').value = sharedUrl;
+                shortenUrl(); // Automatically shorten the shared URL
+            }
+            const storedToken = localStorage.getItem("w000t_token");
+            if (storedToken) {
+                document.getElementById("token").value = storedToken;
+            }
+        });
+
+        // DOM Elements
+        const longUrlInput = document.getElementById('long-url');
+        const tokenInput = document.getElementById('token');
+        const shortenBtn = document.getElementById('shorten-btn');
+        const resultDiv = document.getElementById('result');
+        const shortUrlText = document.getElementById('short-url');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusDiv = document.getElementById('status');
+        const loadingDiv = document.getElementById('loading');
+        const w000tTitle = document.getElementById('w000t');
+
+        // Event Listeners
+        shortenBtn.addEventListener('click', shortenUrl);
+        w000tTitle.addEventListener('click', toggleTokenInput);
+        longUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { shortenUrl(); }
+        });
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        // Shorten URL Function using w000t.me API
+        async function shortenUrl() {
+            const longUrl = longUrlInput.value.trim();
+            const token = tokenInput.value.trim();
+            if (token) {
+                localStorage.setItem("w000t_token", token);
+            }
+
+            if (!longUrl) {
+                showStatus('Please enter a valid URL', 'error');
+                return;
+            }
+
+            try {
+                // Show loading state
+                loadingDiv.style.display = 'block';
+                shortenBtn.disabled = true;
+
+                // Using w000t.me API
+                const response = await fetch('https://w000t.me/w000ts.json', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        w000t: {
+                            long_url: longUrl,
+                        },
+                        token: token,
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to shorten URL: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Get the short URL from the response
+                // Note: Adjust this based on the actual response structure
+                const shortUrl = data.w000t;
+
+                // Display the result
+                shortUrlText.textContent = shortUrl;
+                resultDiv.style.display = 'block';
+
+                // Automatically copy to clipboard
+                await copyToClipboard();
+            } catch (error) {
+                console.error('Error shortening URL:', error);
+                showStatus(error.message || 'Error shortening URL', 'error');
+            } finally {
+                loadingDiv.style.display = 'none';
+                shortenBtn.disabled = false;
+            }
+        }
+
+        // Copy to Clipboard Function
+        async function copyToClipboard() {
+            const shortUrl = shortUrlText.textContent;
+
+            try {
+                await navigator.clipboard.writeText(shortUrl);
+                showStatus('Copied to clipboard!', 'success');
+            } catch (error) {
+                showStatus('Failed to copy. Please copy manually.', 'error');
+            }
+        }
+
+        function toggleTokenInput() {
+            if (tokenInput.style.display === "none") {
+                tokenInput.style.display = "inline";
+            } else {
+                tokenInput.style.display = "none";
+            }
+        }
+
+        // Show Status Message
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status';
+            statusDiv.classList.add(type);
+            statusDiv.style.display = 'block';
+
+            // Hide status after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
